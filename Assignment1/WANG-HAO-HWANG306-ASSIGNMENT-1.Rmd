@@ -1,0 +1,93 @@
+---
+output: 
+  bookdown::pdf_document2:
+    toc: false
+    citation_package: natbib
+    keep_tex: false
+    fig_caption: true
+    latex_engine: pdflatex
+title: "STP598-Assignment 1"
+author: 
+- Hao Wang 
+- hwang306
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 12pt
+spacing: single
+papersize: letter
+bibliography: D:/Dropbox/bib/Haowang.bib
+biblio-style: apsr
+citecolor: blue
+header-includes: \usepackage{graphicx, longtable, float, subfigure}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Question 1
+
+Load the data first, with a brief inspection.
+
+```{r, echo=TRUE, include=TRUE}
+mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-Stats/master/Assignment1/HtVol.csv", header = TRUE)
+summary(mydata)
+```
+
+## 1.a Predictive model
+
+I build a simple linear model first
+
+$$\hat{HtVol} =  \beta_0 + \beta_{1}Male + \beta_{2}Age + \beta_{3}Ht + \beta_{4}Wt$$
+
+Use `lm` function to obtain the LS coefficients
+
+```{r lm}
+lm <- lm(HtVol ~ Male + Age + Ht + Wt, data = mydata)
+summary(lm)
+```
+
+With the `lm` function, the fitting line is
+
+$$\hat{HtVol} =  -263.67 + 41.34*Male -0.34*Age + 3.38*Ht + 0.68*Wt$$
+
+I use package 'L1pack' to perform least absolute deviation regression
+
+Unlike Least Squares, Least Absolute Deviation minimize
+
+$$ S = \sum_{i =1}^{n}|y_i - f(x_i)|$$
+
+```{r LAD, echo=TRUE, include=TRUE}
+library("L1pack")
+lad  <-  lad(HtVol ~ Male + Age + Ht + Wt, data = mydata)
+summary(lad)
+```
+
+The fitting line is 
+
+$$\hat{HtVol} =  -213.76 + 48.17*Male + 0.18*Age + 2.99*Ht + 4.41*Wt$$
+
+## 1.b 
+Steps are very similar, just change the explainatory variables
+
+```{r}
+lm <- lm(HtVol ~ Male + Age + BMI + BSA, data = mydata)
+summary(lm)
+```
+
+The linear fitting is 
+
+$$\hat{HtVol} = -121.95 + 37*Male -0.67* Age - 5.30 * BMI + 590 * BSA$$
+
+For the LAD method:
+
+```{r}
+lad <- lad(HtVol ~ Male + Age + BMI + BSA, data = mydata)
+summary(lad)
+```
+
+$$\hat{HtVol} = -40.99 + 37.87*Male -0.22* Age - 6.66 * BMI + 501.57 * BSA$$
+
