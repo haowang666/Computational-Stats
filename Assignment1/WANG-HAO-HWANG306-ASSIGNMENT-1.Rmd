@@ -16,8 +16,6 @@ fontfamily: mathpazo
 fontsize: 12pt
 spacing: single
 papersize: letter
-bibliography: D:/Dropbox/bib/Haowang.bib
-biblio-style: apsr
 citecolor: blue
 header-includes: \usepackage{graphicx, longtable, float, subfigure}
 ---
@@ -37,7 +35,7 @@ mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-S
 summary(mydata)
 ```
 
-## 1.a Predictive model
+## Predictive model
 
 I build a simple linear model first
 
@@ -70,7 +68,8 @@ The fitting line is
 
 $$\hat{HtVol} =  -213.76 + 48.17*Male + 0.18*Age + 2.99*Ht + 4.41*Wt$$
 
-## 1.b 
+## Changing Models
+
 Steps are very similar, just change the explainatory variables
 
 ```{r}
@@ -91,3 +90,305 @@ summary(lad)
 
 $$\hat{HtVol} = -40.99 + 37.87*Male -0.22* Age - 6.66 * BMI + 501.57 * BSA$$
 
+## Ten fold cross validation
+
+
+I did 10-cv for question 1.1 first (predictors are Male, Age, Ht and Wt).
+
+
+```{r}
+#set seed
+k = 10
+library(boot)
+set.seed(99)
+folds <- sample(1:k, nrow(mydata), replace = TRUE)
+```
+
+```{r}
+for (i in 1:10) {
+  #ls fit
+  ls.fit <- lm(HtVol ~ Male + Age + Ht + Wt, data = mydata[folds != i, ])
+  pred.ls <- predict(ls.fit, mydata[folds == i, ])
+  #rmse and mae and smdape
+  print(paste0(i,") RMSE of Question 1.1 (LS fit): ",
+               sqrt(mean((mydata$HtVol[folds == i] - pred.ls)^2))
+               ))
+  print(paste0(i,") MAE of Question 1.1 (LS fit): ",
+               mean(abs(mydata$HtVol[folds == i] - pred.ls))
+               ))
+  print(paste0(i,") sMdAPE of Question 1.1 (LS fit): ",
+               median(200*(
+                 abs(mydata$HtVol[folds == i] - pred.ls) /
+                   (mydata$HtVol[folds == i] = pred.ls)))
+               ))
+}
+```
+
+
+For LAD fit, it can be done similarly
+
+```{r}
+for (i in 1:10) {
+  #lad fit
+  lad.fit <- lad(HtVol ~ Male + Age + Ht + Wt, data = mydata[folds != i, ])
+  pred.lad <- predict(lad.fit, mydata[folds == i, ])
+  #rmse and mae and smdape
+  print(paste0(i,") RMSE of Question 1.1 (LAD fit): ",
+               sqrt(mean((mydata$HtVol[folds == i] - pred.lad)^2))
+               ))
+  print(paste0(i,") MAE of Question 1.1 (LAD fit): ",
+               mean(abs(mydata$HtVol[folds == i] - pred.lad))
+               ))
+  print(paste0(i,") sMdAPE of Question 1.1 (LAD fit): ",
+               median(200*(
+                 abs(mydata$HtVol[folds == i] - pred.lad) /
+                   (mydata$HtVol[folds == i] = pred.lad)))
+               ))
+}
+
+```
+
+
+for question 1.2, all I need to do is to change model specification.
+
+```{r}
+for (i in 1:10) {
+  #ls fit
+  ls.fit <- lm(HtVol ~ Male + Age + BMI + BSA, data = mydata[folds != i, ])
+  pred.ls <- predict(ls.fit, mydata[folds == i, ])
+  #rmse and mae and smdape
+  print(paste0(i,") RMSE of Question 1.1 (LS fit): ",
+               sqrt(mean((mydata$HtVol[folds == i] - pred.ls)^2))
+               ))
+  print(paste0(i,") MAE of Question 1.1 (LS fit): ",
+               mean(abs(mydata$HtVol[folds == i] - pred.ls))
+               ))
+  print(paste0(i,") sMdAPE of Question 1.1 (LS fit): ",
+               median(200*(
+                 abs(mydata$HtVol[folds == i] - pred.ls) /
+                   (mydata$HtVol[folds == i] = pred.ls)))
+               ))
+}
+```
+
+
+Similarly for LAD
+
+*I kept got warning in formating with `rmarkdown` here: the solutions are not unique*.
+
+```
+for (i in 1:10) {
+  #lad fit
+  lad.fit <- lad(HtVol ~ Male + Age + BMI + BSA, data = mydata[folds != i, ], print.it
+ = FALSE)
+  pred.lad <- predict(lad.fit, mydata[folds == i, ])
+  #rmse and mae and smdape
+  print(paste0(i,") RMSE of Question 1.1 (LAD fit): ",
+               sqrt(mean((mydata$HtVol[folds == i] - pred.lad)^2))
+               ))
+  print(paste0(i,") MAE of Question 1.1 (LAD fit): ",
+               mean(abs(mydata$HtVol[folds == i] - pred.lad))
+               ))
+  print(paste0(i,") sMdAPE of Question 1.1 (LAD fit): ",
+               median(200*(
+                 abs(mydata$HtVol[folds == i] - pred.lad) /
+                   (mydata$HtVol[folds == i] = pred.lad)))
+               ))
+}
+```
+
+
+## Residul fitting plots
+
+It seems to me that LS fitting is better than LAD fitting. To illustrate my point I draw residual fitted plot.
+
+```{r, include=TRUE}
+library(ggplot2)
+lm <- lm(HtVol ~ Male + Age + Ht + Wt, data = mydata)
+lad <- lad(HtVol ~ Male + Age + Ht + Wt, data = mydata)
+
+plot(fitted(lm), residuals(lm),  xlab="Fitted", ylab="Residuals")
+abline(h=0, col="red") # draws a horizontal red line at y = 0
+
+plot(fitted(lad), residuals(lad),  xlab="Fitted", ylab="Residuals")
+abline(h=0, col="red") # draws a horizontal red line at y = 0
+```
+
+```{r, include=TRUE}
+library(ggplot2)
+lm <- lm(HtVol ~ Male + Age + BMI + BSA, data = mydata)
+lad <- lad(HtVol ~ Male + Age + BMI + BSA, data = mydata)
+
+plot(fitted(lm), residuals(lm),  xlab="Fitted", ylab="Residuals")
+abline(h=0, col="red") # draws a horizontal red line at y = 0
+
+plot(fitted(lad), residuals(lad),  xlab="Fitted", ylab="Residuals")
+abline(h=0, col="red") # draws a horizontal red line at y = 0
+```
+
+
+
+
+
+
+# Question 2
+
+##  10 fold CV
+
+```{r, message=FALSE, warning=FALSE}
+mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-Stats/master/Assignment1/Deat.csv")
+library(dplyr)
+mydata <- mydata %>%
+  select(Smoking, Age, Gender, Diabetes, Death)
+
+mydata2 <- mydata %>%
+  mutate_each_(funs(scale(.) %>% as.vector), 
+                             vars = c("Age"))
+```
+
+I pick `Smoking`, `Age`, `Gender`, `Diabetes` as my predictors. I use package `caret` to do 10 fold cross validation. I use package `dplyr` to do a subselection. The first thing I did is to inspect the data scales. I found `Age` is not in the same dimension with other variables. So I did a rescaling first. `mydata2` contains all the preditors I used (age scaled with mean 0 and std 1). 
+
+
+As an example, I pick the number of nearest neighbors as 5. 
+```{r}
+library(class)
+set.seed(99)
+k = 10
+folds <- sample(1:k, nrow(mydata2), replace = TRUE)
+
+mse.knn = rep(0, times = k)
+predict.knn = rep(0, times = nrow(mydata2))
+
+for (i in 1:10) {
+  pred.knn <- knn(mydata2[folds != i, ], 
+                  mydata2[folds == i, ], 
+                  as.factor(mydata2$Death[folds != i]), k = 5)
+  print(paste0(i,") error rate: ",
+               round(mean(mydata2$Death[folds == i ] != pred.knn),3)))
+}
+
+```
+  
+
+With respect to logistic regression. I did the similar steps.
+
+```{r}
+library(class)
+set.seed(99)
+k = 10
+folds <- sample(1:k, nrow(mydata2), replace = TRUE)
+
+mse.knn = rep(0, times = k)
+predict.knn = rep(0, times = nrow(mydata2))
+
+mydata2$Death <- as.factor(mydata2$Death)
+
+
+for (i in 1:10) {
+  glm.fit <- glm(Death ~., data = mydata2[folds != i, ], family = "binomial")
+  pred.probs <- predict(glm.fit, mydata2[folds == i, ], type = "response")
+  glm.pred <- rep(0, length(pred.probs))
+  glm.pred[pred.probs > .5] = 1
+  print(paste0(i,") error rate: ",
+               mean(mydata2$Death[folds == i ] != glm.pred)))
+}
+
+```
+
+
+##  Validation set approach
+
+Again use `mydata2` given in the previous section
+
+```{r}
+set.seed(1)
+
+#creat a train with 75% of the data
+trainRows = sample(1:nrow(mydata2), 0.75*nrow(mydata2))
+length(trainRows)
+
+train <- mydata2[trainRows, ]
+test <- mydata2[-trainRows, ]
+```
+
+The nest step is fitting glm and knn with train
+
+```{r}
+#glm fitting
+glm.fit <- glm(Death ~., data = train, family = "binomial")
+#knn fitting
+knn.fit <- knn(train = train, test = test, cl = train$Death, k = 5)
+```
+
+The validation error can be calculated through the following
+
+```{r}
+  pred.probs <- predict(glm.fit, data = test, type = "response")
+  glm.pred <- rep(0, length(pred.probs))
+  glm.pred[pred.probs > .5] = 1
+  print(paste(" glm error rate: ",
+               round(mean(test$Death != glm.pred), 4)))
+  print(paste(" knn error rate: ",
+               mean(test$Death != knn.fit)))
+  
+```
+
+To repeat the process, all I need to change is the seed. 
+
+```{r}
+set.seed(2)
+
+#creat a train with 75% of the data
+trainRows = sample(1:nrow(mydata2), 0.75*nrow(mydata2))
+train <- mydata2[trainRows, ]
+test <- mydata2[-trainRows, ]
+
+#glm fitting
+glm.fit <- glm(Death ~., data = train, family = "binomial")
+#knn fitting
+knn.fit <- knn(train = train, test = test, cl = train$Death, k = 5)
+
+#glm fitting
+glm.fit <- glm(Death ~., data = train, family = "binomial")
+#knn fitting
+knn.fit <- knn(train = train, test = test, cl = train$Death, k = 5)
+
+#error rate
+pred.probs <- predict(glm.fit, data = test, type = "response")
+  glm.pred <- rep(0, length(pred.probs))
+  glm.pred[pred.probs > .5] = 1
+  print(paste(" glm error rate: ",
+               round(mean(test$Death != glm.pred), 4)))
+  print(paste(" knn error rate: ",
+               mean(test$Death != knn.fit)))
+```
+
+```{r}
+set.seed(3)
+
+#creat a train with 75% of the data
+trainRows = sample(1:nrow(mydata2), 0.75*nrow(mydata2))
+train <- mydata2[trainRows, ]
+test <- mydata2[-trainRows, ]
+
+#glm fitting
+glm.fit <- glm(Death ~., data = train, family = "binomial")
+#knn fitting
+knn.fit <- knn(train = train, test = test, cl = train$Death, k = 5)
+
+#glm fitting
+glm.fit <- glm(Death ~., data = train, family = "binomial")
+#knn fitting
+knn.fit <- knn(train = train, test = test, cl = train$Death, k = 5)
+
+#error rate
+pred.probs <- predict(glm.fit, data = test, type = "response")
+  glm.pred <- rep(0, length(pred.probs))
+  glm.pred[pred.probs > .5] = 1
+  print(paste(" glm error rate: ",
+               round(mean(test$Death != glm.pred), 4)))
+  print(paste(" knn error rate: ",
+               mean(test$Death != knn.fit)))
+```
+
+By changing the `seed` alone, I get three different error rates. This indicates that when using different train sets, we may have different predictions over the testing sets. Cross-validation is needed to get an optimized error rate. 
