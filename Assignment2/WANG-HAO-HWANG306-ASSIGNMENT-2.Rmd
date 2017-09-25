@@ -1,0 +1,57 @@
+---
+output: 
+  bookdown::pdf_document2:
+    toc: false
+    citation_package: natbib
+    keep_tex: false
+    fig_caption: true
+    latex_engine: pdflatex
+title: "STP598-Assignment 2"
+author: 
+- Hao Wang 
+- hwang306
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 12pt
+spacing: single
+papersize: letter
+citecolor: blue
+header-includes: \usepackage{graphicx, longtable, float, subfigure}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Question 1
+
+# Question 3
+
+Permuation test
+
+```{r, echo=FALSE}
+#generate a random dataset including x and y variables
+
+set.seed(1)
+x <- rnorm(1000) + 100
+y <- rchisq(1000, 7)
+mydata <- cbind.data.frame(x, y)
+
+#spearman correlation
+cor.spearman <- cor(x, y, method = "spearman")
+cor.test(x, y, method = "spearman")
+
+#run a permutation test for 10,000 times
+
+corr <- numeric(10000)
+for (i in  1:10000) {
+  corr[i] <- cor(sample(x), y, method = "spearman")
+}
+
+
+  
+```
+
