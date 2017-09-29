@@ -35,7 +35,7 @@ mydata <- aircondit
 ```
 
 
-let $t = hours$, then t is $geq$ 0. the pdf of t is
+let $t = hours$, then t is $\geq$ 0. the pdf of t is
 
 $$ f(t; \lambda) = \lambda e^{-\lambda t}$$
 
