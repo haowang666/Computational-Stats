@@ -28,6 +28,282 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Question 1
 
+
+```{r, warning=FALSE}
+library(boot)
+mydata <- aircondit
+```
+
+
+let $t = hours$, then t is $geq$ 0. the pdf of t is
+
+$$ f(t; \lambda) = \lambda e^{-\lambda t}$$
+
+Assume independent, the joint pdf for $t_i$ from 1 to n is 
+
+$$f(\mathbf{t}; \lambda) = \lambda^{n} e^{-\lambda\sum{t_i}} $$
+Take log transformation.
+
+$$ ln(f(\mathbf{t})) = nln(\lambda) -\lambda \sum t_i$$
+
+take derivative with respect to $\lambda$
+
+$$\frac{\partial ~ln}{\partial \lambda} = \frac{n}{\lambda} - \sum t_i$$
+
+the MLE of lambda is the value of lambda when this equation is 0. Thus
+
+$$\lambda = \frac{n}{\sum t_i}$$
+
+To get this estimate in r
+
+```{r}
+lambda <- nrow(mydata) / sum(mydata$hours)
+lambda
+```
+
+## use loop for se and bias
+
+```{r}
+# set up the bootstrap
+B <- 10000        #number of replicates
+n <- nrow(mydata) #sample size
+R <- numeric(B)   #storage for replicates
+
+#bootstrap method using loop
+for (b in 1:B) {
+  #randomly select the indices
+  i <- sample(1:n, size = n, replace = TRUE)
+  HOUR <- mydata$hours[i]
+  R[b] <- n / sum(HOUR) #this is the lambda scores from loop
+}
+
+#output
+se.R <- sd(R)
+se.R
+bias.R <- mean(R) - lambda
+bias.R
+```
+
+## use boot funtion
+
+```{r}
+# write a funtion for estimate lambda in bootstrap
+bs <- function(data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  L <- nrow(data)/sum(d) 
+  return(L)
+} 
+
+set.seed(99)
+results <- boot(data = mydata, statistic = bs, R = 10000)
+results
+```
+
+## use replicates function
+
+```{r}
+n <- nrow(mydata) #sample size
+results <- replicate(10000,
+                     expr = {
+                       y <- sample(1:n, size = n, replace = TRUE)
+                     nrow(mydata)/sum(y)})
+bias.R <- mean(results) - lambda
+bias.R
+se.R <- sd(results)
+se.R
+```
+
+
+
+# Question 2
+
+## Part I question
+
+This question requires a comparison between regular intervals and bootstrap intervals. 
+
+I examine the four models in part one first 
+
+```{r, message=FALSE}
+mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-Stats/master/Assignment1/HtVol.csv", header = TRUE)
+
+#model 1 lm
+lm1 <- lm(HtVol ~ Male + Age + Ht + Wt, data = mydata)
+confint(lm1, level = 0.9)
+
+#model 2 lad
+library("quantreg")
+lad1  <- quantreg::rq(HtVol ~ Male + Age + Ht + Wt, data = mydata, alpha = 0.05, ci = TRUE)
+summary(lad1)
+
+# model 3 lm
+lm2 <- lm(HtVol ~ Male + Age + BMI + BSA, data = mydata)
+confint(lm2, level = 0.9)
+
+# model 4 lad
+lad <- quantreg::rq(HtVol ~ Male + Age + BMI + BSA, data = mydata, alpha = 0.05, ci = TRUE)
+summary(lad)
+
+```
+
+We can use bootstrap to compute confidence intervals for the four models.
+
+- **for model 1**
+
+```{r, warning=FALSE}
+library(boot)
+# Bootstrap 90% CI for regression coefficients 
+
+# function to obtain regression weights 
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  fit <- lm(formula, data = d)
+  return(coef(fit)) 
+} 
+
+# bootstrapping with 1000 replications 
+set.seed(99)
+results <- boot(data = mydata, statistic = bs, 
+  	R = 1000, formula = HtVol ~ Male + Age + Ht + Wt)
+
+
+# get 95% confidence intervals 
+boot.ci(results, conf = 0.9, type = "bca", index = 1) # intercept 
+boot.ci(results, conf = 0.9, type = "bca", index = 2) # Male
+boot.ci(results, conf = 0.9, type = "bca", index = 3) # Age
+boot.ci(results, conf = 0.9, type = "bca", index = 4) # Ht
+boot.ci(results, conf = 0.9, type = "bca", index = 5) # Wt
+
+```
+
+The steps for the other three models are very similar
+
+- **for model 2:**
+
+```{r, warning=FALSE}
+# function to obtain regression weights 
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  fit <- quantreg::rq(formula, data = d)
+  return(coef(fit)) 
+} 
+
+# bootstrapping with 1000 replications 
+set.seed(99)
+results <- boot(data = mydata, statistic = bs, 
+  	R = 1000, formula = HtVol ~ Male + Age + Ht + Wt)
+
+
+# get 95% confidence intervals 
+boot.ci(results, conf = 0.9, type = "bca", index = 1) # intercept 
+boot.ci(results, conf = 0.9, type = "bca", index = 2) # Male
+boot.ci(results, conf = 0.9, type = "bca", index = 3) # Age
+boot.ci(results, conf = 0.9, type = "bca", index = 4) # Ht
+boot.ci(results, conf = 0.9, type = "bca", index = 5) # Wt
+
+```
+
+
+
+- **for model 3:**
+
+
+```{r, warning=FALSE}
+# function to obtain regression weights 
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  fit <- lm(formula, data = d)
+  return(coef(fit)) 
+} 
+
+# bootstrapping with 1000 replications 
+set.seed(99)
+results <- boot(data = mydata, statistic = bs, 
+  	R = 1000, formula = HtVol ~ Male + Age + BMI + BSA)
+
+
+# get 95% confidence intervals 
+boot.ci(results, conf = 0.9, type = "bca", index = 1) # intercept 
+boot.ci(results, conf = 0.9, type = "bca", index = 2) # Male
+boot.ci(results, conf = 0.9, type = "bca", index = 3) # Age
+boot.ci(results, conf = 0.9, type = "bca", index = 4) # BMI
+boot.ci(results, conf = 0.9, type = "bca", index = 5) # BSA
+```
+
+
+- **for model 4**
+
+```{r, warning=FALSE}
+# function to obtain regression weights 
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  fit <- quantreg::rq(formula, data = d)
+  return(coef(fit)) 
+} 
+
+# bootstrapping with 1000 replications 
+set.seed(99)
+results <- boot(data = mydata, statistic = bs, 
+  	R = 1000, formula = HtVol ~ Male + Age + BMI + BSA)
+
+
+# get 95% confidence intervals 
+boot.ci(results, conf = 0.9, type = "bca", index = 1) # intercept 
+boot.ci(results, conf = 0.9, type = "bca", index = 2) # Male
+boot.ci(results, conf = 0.9, type = "bca", index = 3) # Age
+boot.ci(results, conf = 0.9, type = "bca", index = 4) # BMI
+boot.ci(results, conf = 0.9, type = "bca", index = 5) # BSA
+```
+
+
+Compare with the confidence intervals of `lm` and `rq`, they are slifghtly different as `boot.ci` function use the bootstrap resampling method.
+
+
+## Part 2 question
+
+I pick `Smoking`, `Age`, `Gender`, `Diabetes` as my predictors. 
+
+```{r, warning=FALSE}
+mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-Stats/master/Assignment1/Deat.csv")
+library(dplyr)
+mydata <- mydata %>%
+  select(Smoking, Age, Gender, Diabetes, Death)
+
+# Scale Age variable to make it in the similar range
+mydata2 <- mydata %>%
+  mutate_each_(funs(scale(.) %>% as.vector), 
+                             vars = c("Age"))
+
+glm.fit <- glm(Death ~ Smoking + Age + Gender + Diabetes, data = mydata2, family = "binomial")
+confint(glm.fit, level = 0.9)
+```
+
+The bootstrap confidence intervals can be done in a similar way
+
+```{r, warning=FALSE}
+# function to obtain regression weights 
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  fit <- glm(formula, data = d, family = "binomial")
+  return(coef(fit)) 
+} 
+
+# bootstrapping with 1000 replications 
+set.seed(99)
+results <- boot(data = mydata2, statistic = bs, 
+  	R = 1000, formula = Death ~ Smoking + Age + Gender + Diabetes)
+
+
+# get 95% confidence intervals 
+boot.ci(results, conf = 0.9, type = "bca", index = 1) # intercept 
+boot.ci(results, conf = 0.9, type = "bca", index = 2) # Smoking
+boot.ci(results, conf = 0.9, type = "bca", index = 3) # Age
+boot.ci(results, conf = 0.9, type = "bca", index = 4) # Gender
+boot.ci(results, conf = 0.9, type = "bca", index = 5) # Diabetes
+
+```
+
+
+
 # Question 3
 
 Permuation test
@@ -75,6 +351,6 @@ hist(reps, main = "", freq = FALSE, xlab = "Spearman Correlation (p = 0.21)", br
 points(cor.0, 0, cex = 1, pch = 16) #observed T
 ```
 
-Thus we cannot reject the null: true spearman correlation is 0. In the orginal spearman test, the p value is 0.422.
+Thus we cannot reject the null: true spearman correlation is 0. In the orginal spearman test, the p value is 0.422. 
 
 
