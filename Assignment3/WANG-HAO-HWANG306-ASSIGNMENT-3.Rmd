@@ -24,13 +24,133 @@ header-includes: \usepackage{graphicx, longtable, float, subfigure}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Question 1
 
+A monte carlo test for four bootstrap confidence intervals. 
+
+
+# Question 2
+
+For this question I checked t-test performance of three different distributions. $\alpha$ = 0.9.
+The sample size I pick is 100.
+
+## chi-sq 
+
+
+```{r}
+# chi-sq distribution with 1 degrees of freedom
+n <- 100 # sample size
+alpha <- 0.1
+mu0 <- 1
+m <- 10000 # replication
+p <- numeric(m)
+
+for (i in 1:m) {
+  x <- rchisq(n, 1)
+  ttest <- t.test(x, alternative = "two.sided", mu = mu0)
+  p[i] <- ttest$p.value
+}
+p.hat <- mean(p < alpha)
+p.hat
+```
+
+
+## uniform distribution
+
+```{r}
+# uniform distribution 
+n <- 100 # sample size
+alpha <- 0.1
+mu0 <- 1
+m <- 10000 # replication
+p <- numeric(m)
+
+for (i in 1:m) {
+  x <- runif(n, min = 0, max = 2)
+  ttest <- t.test(x, alternative = "two.sided", mu = mu0)
+  p[i] <- ttest$p.value
+}
+p.hat <- mean(p < alpha)
+p.hat
+```
+
+
+
+## Exponential distribution
+
+
+
+```{r}
+#Exponetial distribution
+n <- 100 # sample size
+alpha <- 0.1
+mu0 <- 1
+m <- 10000 # replication
+p <- numeric(m)
+
+for (i in 1:m) {
+  x <- rexp(n, 1)
+  ttest <- t.test(x, alternative = "two.sided", mu = mu0)
+  p[i] <- ttest$p.value
+}
+p.hat <- mean(p < alpha)
+p.hat
+
+
+```
+
+In all three cases, the monte carlo test error is very close to the nominal value of $\alpha$.
 
 # Question 3 
 
 1. in bivariate normal, the Spearman correlation is less powerful than Pearson correlation
 
 2. find an alternative where Spearman has better empirical power than Pearson correlation.
+
+
+## bivariate normal 
+
+```
+n <- 1000 #sampling size
+m <- 10000 #number of replications
+cor0 <- -0.4 #my pick of alternative hypothesis
+power.p <- numeric(m) # storage of test statistics of pearson
+power.s <- numeric(m)
+
+
+#generate bivariate normal distribution, assume mu = 0, 
+# covaraiance matrix is given by
+Sigma <- matrix(c(1, -0.5, -0.5, 1), 
+                nrow = 2, byrow = TRUE) # covariance matrix
+mu <- c(0,0) #mean
+library(MASS)
+
+
+# run the loop
+for (i in 1:m) {
+bvn1 <- mvrnorm(n, mu = mu, Sigma = Sigma ) # from MASS package
+bvn1 <- as.data.frame(bvn1)
+colnames(bvn1) <- c("x","y")
+pearson <- cor.test(x, y, method = "pearson")
+spearmen <- cor.test(x, y, method = "spearmen")
+}
+
+
+
+
+bvn1 <- mvrnorm(n, mu = mu, Sigma = Sigma ) # from MASS package
+bvn1 <- as.data.frame(bvn1)
+
+colnames(bvn1) <- c("x","y")
+attach(bvn1)
+
+a <- cor.test(x, y, method = "pearson")
+a <- a$p.value
+b <- cor(x, y, method = "spearman")
+```
+
+
+To get the empirical power of the two tests, 
 
 
 # Question 4
