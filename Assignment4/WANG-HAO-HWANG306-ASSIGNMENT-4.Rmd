@@ -91,6 +91,8 @@ RLMstep <- function(y, x, boot){
   }
   rlm <- rlm(y ~ model.in)
 }
+
+
 library(wle)
 library(MASS)
 data(selection)
@@ -103,15 +105,16 @@ min.weight=0.8, type="Stepwise", method="WLS")
 
 x <- result$wstep
 
-model.in <- NULL
+
 xdata <- cbind(1, xdata)
 keep <- numeric(4)
 
+model.in <- NULL
 for (i in 1:4) {
     index <- x[[i]]
     keep[i] <- (index == 1)
     if (keep[i] == TRUE) {
-    model.in <- cbind(model.in, xdata[, i]) }
+    model.in <- cbind(model.in, xdata[, c(i)]) }
   }
 
 ```
