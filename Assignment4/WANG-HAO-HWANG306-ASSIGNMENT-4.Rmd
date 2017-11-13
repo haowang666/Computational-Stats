@@ -55,6 +55,9 @@ rlm2 <- rlm(HtVol ~ .^2, data = mydata)
 null <- rlm(HtVol ~ 1, data = mydata)
 full <- rlm(HtVol ~ .^2, data = mydata)
 
+rlm1 <- rlm(HtVol ~ Male + Age, data = mydata)
+rlm2 <- rlm(HtVol ~ Male, data = mydata)
+
 step = step(null , scope = list( lower = null , upper = full ),
              direction = c("forward"))
 
@@ -64,85 +67,52 @@ step = step(null , scope = list( lower = null , upper = full ),
 
 
 ```{r}
+library(wle) #This package reflects the paper Agostinelli 2002
 
-forward.step <- function(yinput, xinput, penalty)
-{
-### creating global variables
-max.num.pred <- ncol(xinput)     # maximum number of predictors in full model = # of predictors
-n <- nrow(xinput)
-error.final.models <- rep(NA,max.num.pred+1)     # error terms for each "Best" model with p predictors. +1 to include model with just intercept
-col.ind.in.data <- NULL    # tracks which columns ARE in model, INITIALLY NULL FOR FORWARD
-col.ind.not.data <- 1:max.num.pred     # tracks which columns are NOT in model, INITIALLY EVERYTHING FOR FORWARD
-data.in.model <- NULL     # matrix that is BUILT UP with each iteration as variables are ADDED to the model. INITIALLY NULL FOR FORWARD
+data(selection)
 
-for (i in 1:max.num.pred)     # i is the # of predictors in the model
-{
-  
-  # need a new vector of length j terms left to test to store data in the next for loop
-  error.add.jth.var <- vector(length=length(col.ind.not.data))      # Max size is everything NOT in data for FORWARDS
-  
-  for (j in col.ind.not.data)     # j is the variable/col being tested to add to the model
-  {
-    #print(c("testing to ADD",j))     #UNCOMMENT to assist in DEBUGGING. Shows iterations.
-    
-    model.build.data <- cbind(xinput[,col.ind.in.data], xinput[,j])     # loop through and create a dataset with last iteration PLUS new variable to test
-    rq.fit <- rq(yinput ~ model.build.data) 
-    # store error from this model if this var is added next
-    error.add.jth.var[j] <- model.sel.error(rq.fit$res, penalty, i+1, n)     # NEW ERROR TERM
-    #error.add.jth.var[j] <- mean(abs(rq.fit$residuals))     # using mean abs error to determine best model
+result <- wle.stepwise(ydata~xdata, num.sol = 3,
+min.weight=0.8, type="Stepwise", method="WLS")
+
+summary(result)
+
+library(MASS)
+RLMstep <- function(y, x, boot){
+  x <- cbind(1, x) #add intercept
+  p <- ncol(x) # maximum number of predictors
+  model.in <- NA # model building for stepwise regression. the initial status is null
+  stepwise <- wle::wle.stepwise(y ~ x, num.sol = 3, min.weight = 0.8, type = "Stepwise", method = "WLS") #Fuction taken from the correspoding package
+  col.in <- stepwise$wstep #for selecting columns
+  for (i in 1:p) {
+    index <- col.in[[i]]
+    keep <- (index == 1)
+    if (keep == TRUE) {
+    model.in <- cbind(model.in, x[, i]) }
   }
-
-  # stop function if new models being built are worse / have higher error than last iteration
-  # don't evaulate on first iteration as there are no other "final" models to compare to
-  # if ( i>1 & min(error.add.jth.var, na.rm=TRUE) > min(error.final.models, na.rm=TRUE) ) break
-  # CODE is commentd out because I want function to run all iterations so I can show bias variance tradeoff, but functionality is here
-
-  ind.smallest <- which.min(error.add.jth.var)     #get the INDEX number of the var with the SMALLEST error for FORWARDS
-  var.to.add <- col.ind.not.data[ind.smallest]     # get the VARIABLE/COL # that correspons to the index with SMALLEST error
-  #print(c("ADD IN",var.to.add))     #UNCOMMENT to assist in DEBUGGING. Shows iterations.
-  
-  # update all of the global variables associated with the new model with p terms
-  col.ind.in.data[i] <- var.to.add     # update list of variables added to model. The ith term to add is the one just added
-  col.ind.not.data <- col.ind.not.data[!col.ind.not.data==var.to.add]     # REMOVE the var/col that was REMOVED from the list of cols not in model
-  data.in.model <- xinput[,col.ind.in.data,drop=FALSE]     # produce new x matrix that has the correct columsn that should be in the current model
-
-  rq.fit <- rq(yinput ~ data.in.model)     #refit model, store it, and extract needed error term  
-  model.list[[i]] <- rq.fit
-  error.final.models[i] <- model.sel.error(rq.fit$res, penalty, i+1, n)
+  rlm <- rlm(y ~ model.in)
 }
+library(wle)
+library(MASS)
+data(selection)
+x <- RLMstep(ydata, xdata, 3)   
 
-# also build model with only intercept. This model is model # p+1
-rq.fit <- rq(yinput ~ 1) 
-error.final.models[max.num.pred+1] <- model.sel.error(rq.fit$res, penalty, 1, n)
-# error.final.models[max.num.pred+1] <- mean(abs(rq.fit$residuals))     # using mean abs error to determine best model
-model.list[[max.num.pred+1]] <- rq.fit
-
-final.model.w.smallest.err <- which.min(error.final.models)     # determine which model is the best and output it
-rq.final.model <- model.list[[final.model.w.smallest.err]]     # extract model with the smallest error
-
-# print(rq.final.model)
-# print(error.final.models)
-# print(model.list)
-
-# var.bias.tradeoff <<- error.final.models     # ONLY RUN ONCE FOR A GIVEN SCENARIO IN WRITEUP
-
-# store data into temp data fram to be unioned with other results
-df.temp.model.results$p <- n - summary(rq.final.model)$rdf     # extract the df from the selected model and # of predictors
-df.temp.model.results$error <- error.final.models[final.model.w.smallest.err]
-df.temp.model.results$direction <- "Forward"
-df.temp.model.results$n <- n
-df.temp.model.results$error.dist <- "test"
-df.temp.model.results$error.selection <- penalty
-df.temp.model.results$func.type <- "L1step"
-df.temp.model.results$formula <- noquote(paste(names(coef(rq.final.model)), sep="", collapse=" + ")) 
-
-#append resuts to other result sets
-df.model.results <<- rbind(df.model.results, df.temp.model.results)
-"Done"
-##### end FORWARD function
-}
+data(selection)
+result <- wle.stepwise(ydata~xdata, num.sol = 3,
+min.weight=0.8, type="Stepwise", method="WLS")
 
 
+x <- result$wstep
+
+model.in <- NULL
+xdata <- cbind(1, xdata)
+keep <- numeric(4)
+
+for (i in 1:4) {
+    index <- x[[i]]
+    keep[i] <- (index == 1)
+    if (keep[i] == TRUE) {
+    model.in <- cbind(model.in, xdata[, i]) }
+  }
 
 ```
 
