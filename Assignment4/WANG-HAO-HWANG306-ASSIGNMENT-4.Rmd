@@ -30,95 +30,79 @@ Create an R function named RLMstep that performs (hybrid) stepwise model selecti
 1. a column vector y (response)
 2. a matrix X of predictors (predictors should be in columns)
 
-Your function should report: a) the predictors that are included in the final
-robust regression model, and b) coefficient estimates, and their BCa
-confidence intervals
+Your function should report: a) the predictors that are included in the final robust regression model, and b) coefficient estimates, and their BCa confidence intervals
 
 
 The hybrid method of stepwise regression considers both forward and backwards directions. Similar to forward stepwise regression, in a hybrid model, variables are added sequentially. However, after the new variable is added, this method also removes variables that are no longer statistically significant in the regression. The hybrid method mimics the power of best subset regression, but also has the computational advantages of forward and backwards stepwise regression.
 
-I use the `step` function to perform a hybrid approach of regression. `step` function considers the AIC criteria for weighting the choices, at each step an add or drop will be performed to minimize the AIC score.
+My function is based on the method from the Agostinelli (2002)'s idea of robust stepwise regression. I use the function wle.stepwise in the `wle` package to perform the variable selection based on weighted stepwise regression (which is the package supplement of the article). 
 
-The robust regression function is taken from function `rlm`.
+The funtion `RLMstep` will report the predictors that are included, as well as the coefficients from the `rlm` function. I use the Boston data from `MASS` package to display as an example.
+
+In the example, out of the 14 variables, 3 variables are selected: crim, zn and indus. Coefficients are reported. 
+
 
 ```{r}
 library(MASS)
-library(step)
-
-mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-Stats/master/Assignment1/HtVol.csv", header = TRUE)
-summary(mydata)
-
-rlm <- rlm(HtVol ~ I(Male^2)+ I(CT^2) + I(Age^2) + I(Ht^2) +I(Wt^2) + I(BMI^2) + I(BSA^2) + .^2, psi = psi.huber, data = mydata, init = "ls")
-
-rlm2 <- rlm(HtVol ~ .^2, data = mydata)
-
-null <- rlm(HtVol ~ 1, data = mydata)
-full <- rlm(HtVol ~ .^2, data = mydata)
-
-rlm1 <- rlm(HtVol ~ Male + Age, data = mydata)
-rlm2 <- rlm(HtVol ~ Male, data = mydata)
-
-step = step(null , scope = list( lower = null , upper = full ),
-             direction = c("forward"))
-
-```
-
-
-
-
-```{r}
 library(wle) #This package reflects the paper Agostinelli 2002
 
-data(selection)
+RLMstep <- function(y, x){
+set.seed(3)
+y <- as.matrix(y) #convert data.frame to a matrix
+x <- as.matrix(x)
+p <- ncol(x) # maximum number of predictors
+indicies <- numeric(p) #store indicies
+model.in <- NULL # model in
+stepwise <- wle::wle.stepwise(y ~ x, num.sol = 3, 
+                              min.weight = 0.5, type = "Stepwise", method = "WLS") 
+#stepwise function taken from the correspoding package
+wstep <- stepwise$wstep #This extract the class item from last iteration
 
-result <- wle.stepwise(ydata~xdata, num.sol = 3,
-min.weight=0.8, type="Stepwise", method="WLS")
-
-summary(result)
-
-library(MASS)
-RLMstep <- function(y, x, boot){
-  x <- cbind(1, x) #add intercept
-  p <- ncol(x) # maximum number of predictors
-  model.in <- NA # model building for stepwise regression. the initial status is null
-  stepwise <- wle::wle.stepwise(y ~ x, num.sol = 3, min.weight = 0.8, type = "Stepwise", method = "WLS") #Fuction taken from the correspoding package
-  col.in <- stepwise$wstep #for selecting columns
-  for (i in 1:p) {
-    index <- col.in[[i]]
-    keep <- (index == 1)
-    if (keep == TRUE) {
-    model.in <- cbind(model.in, x[, i]) }
+for (i in 1:p) {
+    if (wstep[[i + 1]] == 1) {
+    indicies[i] <- i
   }
-  rlm <- rlm(y ~ model.in)
+}
+model.in <- x[, c(indicies), drop = FALSE]
+print(colnames(model.in))
+rlm.step <- MASS::rlm(y ~ model.in) #new robust regression based on selected variables, default is huber
+print(rlm.step)
 }
 
-
-library(wle)
-library(MASS)
-data(selection)
-x <- RLMstep(ydata, xdata, 3)   
-
-data(selection)
-result <- wle.stepwise(ydata~xdata, num.sol = 3,
-min.weight=0.8, type="Stepwise", method="WLS")
-
-
-x <- result$wstep
-
-
-xdata <- cbind(1, xdata)
-keep <- numeric(4)
-
-model.in <- NULL
-for (i in 1:4) {
-    index <- x[[i]]
-    keep[i] <- (index == 1)
-    if (keep[i] == TRUE) {
-    model.in <- cbind(model.in, xdata[, c(i)]) }
-  }
+#This is an example
+data(Boston)
+Boston <- as.matrix(Boston)
+x <- Boston[, -14, drop = FALSE]
+y <- Boston[, 14, drop = FALSE]
+a <- RLMstep(y, x)
 
 ```
 
+
+I fail to put the BCa function inside my RLMstep function, instead I write a separate function to estimate the BCa confidence intervals. Again I use Boston data as an example. 
+
+
+
+```{r}
+# For the BCa confidence interval
+library(MASS)
+library(boot)
+
+data(Boston)
+boot.huber <- function(data, indices, maxit=20){
+data <- data[indices,] 
+mod <- rlm(medv ~ ., data = data, maxit = maxit)
+coefficients(mod)}
+
+set.seed(1) #set seed
+Boston.boot <- boot(data = Boston, statistic = boot.huber, R = 1000, maxit = 100)
+# BCa for the first three variables
+for (i in 2:4) {
+  boot.ci <- boot.ci(Boston.boot, index = i, type = "bca")
+  print(boot.ci)
+}
+
+```
 
 
 
@@ -127,10 +111,182 @@ for (i in 1:4) {
 
 Compare your function versus the stepAIC function (direction= both") using the HtVol data from the first assignment.
 The set of possible predictors includes Male; Age; Ht; Wt; BMI; BSA,
-all quadratic terms and all bivariate interactions.
+all quadratic terms and all bivariate interactions. To do so I expanded the X variable matrix. In this particuliar dataset, Male and CT is a bivriate dummy variable, no need for quadratic transformation. To make a more comparable comparison, I rescaled the data structure, other numeric variables are scaled to Normal(0,1).
+
+
+Load the data first.
+```{r, message=FALSE}
+mydata <- read.csv("https://raw.githubusercontent.com/haowang666/Computational-Stats/master/Assignment1/HtVol.csv", header = TRUE)
+
+#delete NA
+mydata <- na.omit(mydata)
+
+# rescale data
+library(dplyr)
+mydata <- mydata %>% mutate_each_(funs(scale(.) %>% as.vector), 
+                              vars = c("HtVol","Age","Ht", "Wt", "BMI", "BSA"))
+summary(mydata)
+
+y <- mydata$HtVol
+x <- select(mydata, 2:8)
+#expand the matrix
+x <- model.matrix(~(Age+Ht+Wt+BMI+BSA)^2 -1,x)
+newdata <- cbind(y,x)
+newdata <- as.data.frame(newdata)
+newdata$Age2 <- (newdata$Age)^2
+newdata$Ht2 <- (newdata$Ht)^2
+newdata$Wt2 <- (newdata$Wt)^2
+newdata$BMI2 <- (newdata$BMI)^2
+newdata$BSA2 <- (newdata$BSA)^2
+
+#check variables
+names(newdata)
+
+#reorganize into matrix
+y <- newdata$y
+y <- as.matrix(y)
+x <- newdata[, -1, drop = FALSE]
+x <- as.matrix(x)
+
+# get results from RLMsetp
+time1 <- system.time(RLMstep(y, x))
+time1
+
+
+
+```
+
+We can see that RLMstep picks two interaction terms. To obtain the BCa CI, I use the following codes. The BCa confidence interval for Ht:Wt is (-0.7597,  0.2413 ), and BCa CI for Ht:BMI is (-0.8515,  0.5947 ). 
+
+```{r}
+# BCa interval
+RLM.data <- newdata[, c("y","Ht:Wt", "Ht:BMI")]
+colnames(RLM.data) <- c("y", "HtWt", "HtBMI")
+
+boot.huber <- function(data, indices, maxit=20){
+data <- data[indices,] 
+mod <- rlm(y ~ ., data = data, maxit = maxit)
+coefficients(mod)}
+
+set.seed(1) #set seed
+RLM.boot <- boot(data = RLM.data, statistic = boot.huber, R = 1000, maxit = 100)
+# BCa for the first three variables
+for (i in 2:3) {
+  boot.ci <- boot.ci(RLM.boot, index = i, type = "bca")
+  print(boot.ci)
+}
+```
+
+
+The codes for stepAIC is in the following block
+
+```{r, include=FALSE, message=FALSE}
+lm <- lm(y ~., data = newdata)
+step <- stepAIC(lm, direction = "both")
+```
+
+```{r}
+step$anova # display results
+```
+
+
+
 
 # Question 3
 
-Discuss your findings; create a few figures that convey useful info wrt
-your results.
+Discuss your findings; create a few figures that convey useful info wrt your results.
 
+The majoir difference between my function and the stepAIC function is the number of predictors. RLMstep only includes two interaction terms, but stepAIC picks the following:
+
+- `BMI` + `BSA` + `Age:Ht` + `Age:BSA` + `Ht:Wt` + `Ht:BMI` + `Ht:BSA` + 
+    `Wt:BMI` + `Wt:BSA` + `BMI:BSA` + `Ht2` + `Wt2` + `BSA2`
+
+There could be multple reasons: stepAIC cannot handle robust regression, thus the two models evaluated are actually different. function `lm` is used in stepAIC, but function `rlm` is used in stepRLM, thus should use weighted AIC
+
+```{r}
+wle.aic(formula = y ~ ., data = RLM.data)
+```
+
+
+First I show the residual-fitted plots of the two. Other than creating the resid-fitted plot of the lm function, I also get the resid-fitted plot of the rlm function.
+
+```{r}
+rlm <- rlm(y ~ ., data = RLM.data)
+residual <- rlm$residuals
+fitted <- rlm$fitted.values
+plot(fitted, residual)
+
+#-------------------------
+stepAIC.data <- newdata[ , c("y", "BMI", "BSA", "Age:Ht", "Age:BSA", "Ht:Wt", "Ht:BMI", "Ht:BSA", "Wt:BMI", "Wt:BSA", "BMI:BSA", "Ht2",  "Wt2", "BSA2")]
+colnames(stepAIC.data) <- c("y", "BMI", "BSA", "AgeHt", "AgeBSA", "HtWt", "HtBMI", "HtBSA", "WtBMI", "WtBSA", "BMIBSA", "Ht2",  "Wt2", "BSA2")
+names(stepAIC.data)
+
+lm <- lm(y ~., data = stepAIC.data)
+residual <- lm$residuals
+fitted <- lm$fitted.values
+plot(fitted, residual)
+
+rlm2 <- rlm(y ~., data = stepAIC.data)
+residual <- rlm2$residuals
+fitted <- rlm2$fitted.values
+plot(fitted, residual)
+
+```
+
+
+Then I perform another bootstrap for both models (rlm for RLMstep, lm for stepAIC)
+
+```{r, message=FALSE}
+library(caret)
+RMSE_rlm <- function(data, i){
+#index data for resampling
+  train_data <- data[i,]
+  test_data <- data
+  model <- MASS::rlm(y ~., data = train_data)
+  predict <- predict(model, newdata = test_data)
+#return rmse    
+RMSE <- RMSE(predict, test_data$y)    
+return(RMSE)  
+}
+
+RMSE_step <- function(data, i){
+#index data for resampling
+  train_data <- data[i,]
+  test_data <- data
+  model <- lm(y~., data = train_data)
+  predict <- predict(model, newdata = test_data)
+#return rmse    
+RMSE <- RMSE(predict, test_data$y)    
+return(RMSE)  
+}
+
+#RLM.data, stepAIC.data
+
+
+# Perform Bootstrap
+Repeats <- 100
+set.seed(1)
+res <- boot(RLM.data, statistic = RMSE_rlm, R = Repeats)
+RMSE_rlm <- res$t
+
+set.seed(1)
+res <- boot(stepAIC.data, statistic = RMSE_step, R = Repeats)
+RMSE_step <- res$t
+```
+
+
+```{r}
+x <- seq(1:100)
+RMSE_res <- cbind(x, RMSE_rlm, RMSE_step)
+RMSE_res <- as.data.frame(RMSE_res)
+names(RMSE_res) <- c("ID", "RLMstep", "stepAIC")
+
+ggplot(data = RMSE_res, aes(x = ID)) +
+       geom_line(aes(y = RLMstep, color = "RLMstep")) +
+       geom_line(aes(y = stepAIC, color = "stepAIC")) +
+       xlab("bootstrap sampling ID") +
+       ylab("RMSE")
+
+```
+
+From the figure, it looks the RLMstep results are more stable. 
