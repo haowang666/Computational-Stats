@@ -1,0 +1,514 @@
+---
+output: 
+  bookdown::pdf_document2:
+    toc: false
+    citation_package: natbib
+    keep_tex: false
+    fig_caption: true
+    latex_engine: pdflatex
+title: "STP598-Assignment 4"
+author: 
+- Hao Wang 
+- hwang306
+date: 'Nov 30, 2017'
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 12pt
+spacing: single
+papersize: letter
+citecolor: blue
+header-includes: \usepackage{graphicx, longtable, float, subfigure}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Write estimation functions
+
+```{r, message=FALSE}
+library(MASS)
+library(glmnet)
+library(caret)
+
+
+#ridge
+ridge <- function(Data){
+  cv.fit <- cv.glmnet(Data$X, Data$y, alpha = 0)
+  return(as.numeric(coef(cv.fit, s = cv.fit$lambda.min)))
+}
+
+# lasso
+lasso <- function(Data){
+  require(glmnet)
+  cv.fit <- cv.glmnet(Data$X, Data$y, alpha = 1)
+  return(as.numeric(coef(cv.fit, s = cv.fit$lambda.min)))
+}
+
+
+# elastic net (fixed alpha)
+enet <- function(Data){
+require(glmnet)
+cvfit <- cv.glmnet(Data$X,Data$y,alpha = 0.5)
+return(as.numeric(coef(cvfit,s = cvfit$lambda.min)))
+}
+
+
+# adaptive elastic net (fixed alpha)
+aenet <- function(Data){
+require(glmnet)
+cvfit <- cv.glmnet(Data$X,Data$y,alpha = 0.5)
+cvfit2 <- cv.glmnet(Data$X,Data$y, alpha = 0.5, penalty.factor = abs(1/as.numeric(coef(cvfit,s = cvfit$lambda.min) + (1/n))))
+return(as.numeric(coef(cvfit2,s = cvfit2$lambda.min)))
+}
+
+# adatpive lad alsso
+aladlasso <- function(Data){
+ require(quantreg)
+        tempcfQR1 <- coef(rq(Data$y~Data$X, .5, method = "lasso",lambda = 1))
+			  lam = log(length(Data$y)) / abs(tempcfQR1)
+        lam[1] = 0
+        tempcfQR <- coef(rq(Data$y~Data$X,.5,method = "lasso",lambda = lam))
+     return(tempcfQR)
+ }
+
+```
+
+
+# Data Simulation
+I first generating the testing data, a `seed` argument is included to ensure the same replication.
+
+```{r, message=FALSE, warning=FALSE}
+genData <- function(n, p, beta, rho){
+  require(mvtnorm)
+  CovMatrix <- outer(1:p, 1:p, function(x,y) {rho^abs(x - y)})
+  X <- mvrnorm(n, rep(0,p), CovMatrix)
+  y <- rnorm(n, X %*% beta, 2.2)
+  return(list(X = X, y = y))
+}
+```
+
+
+# Evaluate Performance
+
+The first step is the global setting, the size of n is increased to 250. And the rho is a set of values.
+
+```{r}
+set.seed(1)
+n <- 250    # Number of observations
+p <- 220     # Number of predictors included in model
+beta <- c(2, -2, 1, -1, 0.5, 0.2, -0.3, -0.15, rep(0,212)) #beta value, 8 nonzeros, 212 zeros
+rho.set <- c(0.2, 0.4, 0.6, 0.8) #set of rhos
+rho <- numeric(length(rho.set))
+row.names <- NULL
+for (i in 1:p) {
+  row.names[i] <- paste("var", i, sep = "")
+}
+```
+
+## ridge regression
+
+```{r}
+# This matrix stores coefficient data
+coef.matrix <- matrix(0, p, length(rho.set))
+
+# ridge
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+coeff <- ridge(data)
+coef.matrix[, i] <- coeff[-1] #get rid of first column
+}
+colnames(coef.matrix) <- as.factor(rho.set)
+rownames(coef.matrix) <- row.names
+coef.ridge <- coef.matrix
+```
+
+## lasso regression
+
+```{r}
+#lasso
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+coeff <- lasso(data)
+coef.matrix[, i] <- coeff[-1] #get rid of first column
+}
+colnames(coef.matrix) <- as.factor(rho.set)
+rownames(coef.matrix) <- row.names
+coef.lasso <- coef.matrix
+```
+
+
+## elastic net with fixed alpha
+
+```{r}
+#elastic net, alpha = 0.5
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+coeff <- lasso(data)
+coef.matrix[, i] <- coeff[-1] #get rid of first column
+}
+colnames(coef.matrix) <- as.factor(rho.set)
+rownames(coef.matrix) <- row.names
+coef.enetfixed <- coef.matrix
+```
+
+
+
+
+## adatpive lasso
+
+The first stage is ridge regression with lambda chose by CV. In the `glmnet` setting, change the `alpha` value to 0
+
+```{r}
+alasso <- function(Data){
+require(glmnet)
+cvfit <- cv.glmnet(Data$X,Data$y, alpha = 0)
+cvfit2 <- cv.glmnet(Data$X, Data$y, penalty.factor = abs(1/as.numeric(coef(cvfit,s = cvfit$lambda.min) + (1/n))))
+return(as.numeric(coef(cvfit2,s = cvfit2$lambda.min)))
+}
+
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+coeff <- alasso(data)
+coef.matrix[, i] <- coeff[-1] #get rid of first column
+}
+colnames(coef.matrix) <- as.factor(rho.set)
+rownames(coef.matrix) <- row.names
+coef.alasso <- coef.matrix
+```
+
+
+## least sq after adpative lasso
+
+To to the least square estimate, I use the matrix generated from the adaptive lasso stage. 
+
+```{r}
+lm <- list()
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+varlist <- coef.alasso[,4, drop = FALSE]
+varlist <- varlist[which(varlist != 0), , drop = FALSE]
+# extract row names, covert that into a vector
+a <- row.names(varlist)
+a <- gsub(pattern = "var", replacement = "", a)
+a <- c(as.numeric(a))
+data$X <- data$X[ , a]
+lm.fit <- lm(y ~ X, data = data)
+coef <- coef(lm.fit)[-1]
+lm[[paste0("lmcoef", i)]] <- coef
+}
+lm
+```
+
+## adaptive lad lasso
+
+```{r}
+#adaptive lad lasso
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+coeff <- aladlasso(data)
+coef.matrix[, i] <- coeff[-1] #get rid of first column
+}
+colnames(coef.matrix) <- as.factor(rho.set)
+rownames(coef.matrix) <- row.names
+coef.aladlasso <- coef.matrix
+```
+
+
+
+
+## adaptive elastic net with alpha unfixed
+This questions requires both changing alpha and lambda. Besides, the value of `rho` is looped through the simulation process. I use package `caret` for tuning `alpha` and `lambda` simultaneously. To make it more comparable to the previous cases, I use the entire sample population as my train set (strictly speaking should be splited into test and training datasets). 
+
+
+```{r, warning=FALSE}
+library(caret)
+set.seed(1) 
+
+# This matrix stores best tuning parameters
+tune.matrix <- matrix(0, 4, 2)
+row.names(tune.matrix) <- as.factor(rho.set)
+colnames(tune.matrix) <- c("alpha", "lambda") 
+
+# This matrix stores coefficients
+coef.matrix <- matrix(0, p, length(rho.set))
+colnames(coef.matrix) <- as.factor(rho.set)
+rownames(coef.matrix) <- row.names
+
+for (i in 1:length(rho.set)) { 
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+colnames(data$X) <- row.names
+ctrl <- trainControl(method = "repeatedcv", number = 10)
+tune.grid <- expand.grid(alpha = (1:10)*0.1, lambda = (1:10)*0.1)
+model.fit <- train(data$X, data$y, method = "glmnet", tuneGrid = tune.grid, trControl = ctrl)
+tune.matrix[i, ] <- as.numeric(model.fit$bestTune)
+a <- as.matrix(coef(model.fit$finalModel, model.fit$bestTune$lambda))
+a <- a[-1,]
+coef.matrix[, i] <- a
+}
+coef.aenet <- coef.matrix
+```
+
+## least squares after adaptive elastic net
+
+```{r}
+lm2 <- list()
+for (i in 1:length(rho.set)) {
+set.seed(1)
+rho <- rho.set[i]  
+data <- genData(n, p, beta, rho)
+varlist <- coef.aenet[,4, drop = FALSE]
+varlist <- varlist[which(varlist != 0), , drop = FALSE]
+# extract row names, covert that into a vector
+a <- row.names(varlist)
+a <- gsub(pattern = "var", replacement = "", a)
+a <- c(as.numeric(a))
+data$X <- data$X[ , a]
+lm.fit <- lm(y ~ X, data = data)
+coef <- coef(lm.fit)[-1]
+lm2[[paste0("lmcoef", i)]] <- coef
+}
+lm2
+
+```
+
+
+# graphic presentation
+
+## global setting
+```{r}
+n <- 250    # Number of observations
+p <- 220     # Number of predictors included in model
+beta <- c(2, -2, 1, -1, 0.5, 0.2, -0.3, -0.15, rep(0,212)) #beta value, 8 nonzeros, 212 zeros
+rho.set <- c(0.2, 0.4, 0.6, 0.8) #set of rhos
+results <- array(NA,dim = c(n,p,6),
+dimnames = list(1:n,1:p,c("Lasso","Ridge","El-Net","Ad. Lasso", "Ad. El-Net","Ad.LAD-Lasso")))
+```
+
+
+## image plot
+```{r}
+myImagePlot <- function(x, ...){
+     min <- min(x)
+     max <- max(x)
+     yLabels <- rownames(x)
+     xLabels <- colnames(x)
+     title <-c()
+  # check for additional function arguments
+  if( length(list(...)) ){
+    Lst <- list(...)
+    if( !is.null(Lst$zlim) ){
+       min <- Lst$zlim[1]
+       max <- Lst$zlim[2]
+    }
+    if( !is.null(Lst$yLabels) ){
+       yLabels <- c(Lst$yLabels)
+    }
+    if( !is.null(Lst$xLabels) ){
+       xLabels <- c(Lst$xLabels)
+    }
+    if( !is.null(Lst$title) ){
+       title <- Lst$title
+    }
+  }
+# check for null values
+if( is.null(xLabels) ){
+   xLabels <- c(1:ncol(x))
+}
+if( is.null(yLabels) ){
+   yLabels <- c(1:nrow(x))
+}
+
+layout(matrix(data=c(1,2), nrow=1, ncol=2), widths=c(4,1), heights=c(1,1))
+
+ # Red and green range from 0 to 1 while Blue ranges from 1 to 0
+ ColorRamp <- rgb( seq(0,1,length=256),  # Red
+                   seq(0,1,length=256),  # Green
+                   seq(1,0,length=256))  # Blue
+ ColorLevels <- seq(min, max, length=length(ColorRamp))
+
+ # Reverse Y axis
+ reverse <- nrow(x) : 1
+ yLabels <- yLabels[reverse]
+ x <- x[reverse,]
+
+ # Data Map
+ par(mar = c(3,5,2.5,2))
+ image(1:length(xLabels), 1:length(yLabels), t(x), col=ColorRamp, xlab="",
+ ylab="", axes=FALSE, zlim=c(min,max))
+ if( !is.null(title) ){
+    title(main=title)
+ }
+axis(BELOW<-1, at=1:length(xLabels), labels=xLabels, cex.axis=0.7)
+ axis(LEFT <-2, at=1:length(yLabels), labels=yLabels, las= HORIZONTAL<-1,
+ cex.axis=0.7)
+
+ # Color Scale
+ par(mar = c(3,2.5,2.5,2))
+ image(1, ColorLevels,
+      matrix(data=ColorLevels, ncol=length(ColorLevels),nrow=1),
+      col=ColorRamp,
+      xlab="",ylab="",
+      xaxt="n")
+
+ layout(1)
+}
+```
+
+
+## rho =0.2
+
+```{r}
+for (i in 1:n) {
+results[i,,1] <- coef.lasso[,1]
+results[i,,2] <- coef.ridge[,1]
+results[i,,3] <- coef.enetfixed[,1]
+results[i,,4] <- coef.alasso[,1]
+results[i,,5] <- coef.aenet[,1]
+results[i,,6] <- coef.aladlasso[,1]
+}
+
+B <- apply(results,2:3,mean) - beta
+V <- apply(results,2:3,var)
+MSE <- B^2 + V
+apply(MSE,2,sum)
+
+library(ggplot2)
+library(reshape2)
+B <- apply(results,2:3,mean) - beta
+B <- as.data.frame(B)
+myImagePlot(B, title = "Bias (rho = 0.2)")
+```
+
+Based on MSE, adaptive lasso and elastic net perform better at rho =0.2. 
+
+## rho =0.4
+
+```{r}
+for (i in 1:n) {
+results[i,,1] <- coef.lasso[,2]
+results[i,,2] <- coef.ridge[,2]
+results[i,,3] <- coef.enetfixed[,2]
+results[i,,4] <- coef.alasso[,2]
+results[i,,5] <- coef.aenet[,2]
+results[i,,6] <- coef.aladlasso[,2]
+}
+
+B <- apply(results,2:3,mean) - beta
+V <- apply(results,2:3,var)
+MSE <- B^2 + V
+apply(MSE,2,sum)
+
+library(ggplot2)
+library(reshape2)
+B <- apply(results,2:3,mean) - beta
+B <- as.data.frame(B)
+myImagePlot(B, title = "Bias (rho = 0.4)")
+```
+
+## rho =0.6
+
+When rho =0.6, adaptive lad lasso has the best performance. 
+
+```{r}
+for (i in 1:n) {
+results[i,,1] <- coef.lasso[,3]
+results[i,,2] <- coef.ridge[,3]
+results[i,,3] <- coef.enetfixed[,3]
+results[i,,4] <- coef.alasso[,3]
+results[i,,5] <- coef.aenet[,3]
+results[i,,6] <- coef.aladlasso[,3]
+}
+
+B <- apply(results,2:3,mean) - beta
+V <- apply(results,2:3,var)
+MSE <- B^2 + V
+apply(MSE,2,sum)
+
+library(ggplot2)
+library(reshape2)
+B <- apply(results,2:3,mean) - beta
+B <- as.data.frame(B)
+myImagePlot(B, title = "Bias (rho = 0.6)")
+```
+
+## rho =0.8
+
+When rho =0.8, adaptive lasso and adaptive elastic net are better. 
+
+```{r}
+for (i in 1:n) {
+results[i,,1] <- coef.lasso[,4]
+results[i,,2] <- coef.ridge[,4]
+results[i,,3] <- coef.enetfixed[,4]
+results[i,,4] <- coef.alasso[,4]
+results[i,,5] <- coef.aenet[,4]
+results[i,,6] <- coef.aladlasso[,4]
+}
+
+B <- apply(results,2:3,mean) - beta
+V <- apply(results,2:3,var)
+MSE <- B^2 + V
+apply(MSE,2,sum)
+
+library(ggplot2)
+library(reshape2)
+B <- apply(results,2:3,mean) - beta
+B <- as.data.frame(B)
+myImagePlot(B, title = "Bias (rho = 0.8)")
+```
+
+
+
+# pararell precessing
+
+To illustrate how pararell computing can save time, I use ridge, lasso, elastic net, adaptive lasso as an example (rho=0.2). 
+
+For some unknown reason my laptop won't even perform the time1 function. It crashed several times when I tried to run all the functions together. 
+
+```
+n <- 250    # Number of observations
+p <- 220     # Number of predictors included in model
+beta <- c(2, -2, 1, -1, 0.5, 0.2, -0.3, -0.15, rep(0,212)) #beta value, 8 nonzeros, 212 zeros
+rho <- 0.2 
+results <- array(NA,dim = c(n,p,4))
+dimnames = list(1:n,1:p,c("Lasso","Ridge","El-Net","Ad. Lasso"))
+Data <- genData(n, p, beta, rho)
+
+
+set.seed(1)
+time1 <- system.time(
+for (i in 1:n){
+results[i,,1] <- lasso(Data)[-1]
+results[i,,2] <- ridge(Data)[-1]
+results[i,,3] <- enet(Data)[-1]
+results[i,,4] <- alasso(Data)[-1]
+})
+
+install.packages('doParallel')
+library(doParallel)
+getDoParWorkers()
+registerDoSEQ()
+getDoParWorkers()
+registerDoParallel(cores=4)
+getDoParWorkers()
+
+results <- foreach(i=1:n, .export=c('lasso', 'ridge', 'enet', 'alasso')) %dopar% {data.frame(Data)}
+
+```
+

@@ -1,0 +1,23 @@
+For your last assignment you will have to implement a variant of the last simulation scenario presented in class (Scenario 5: High-dimensional data, correlated predictors, 8 non-zero betas, 212 zeroes). Increase  N from 150 to 250 and evaluate performance of alternative estimators for rho that ranges from 0.2 to 0.8 in steps of 0.2
+
+In contrast to the implementation that you can find in Blackboard, you will have to take advantage of the embarrassingly  parallel nature of the problem: you should implement a parallel computing approach using packages like foreach or simsalapar and evaluate the reduction in computing time when such an approach is undertaken.
+
+In addition to the penalized estimators presented in class you will have to evaluate the performance of:
+
+- adaptive elastic net with both alpha and lambda selected via K-CV; the first stage estimate should be a ridge regression estimate derived using glmnet with lambda chosen via KCV
+
+- least squares after adaptive elastic net: in this approach predictors are selected using adaptive elastic net as implemented in the procedure above; however coefficient estimates are based on least squares on the selected predictors only
+
+- adaptive lasso with  lambda selected via K-CV; the first stage estimate should be a ridge regression estimate derived using glmnet with lambda chosen via KCV
+
+- least squares after adaptive lasso: in this approach predictors are selected using adaptive lasso as implemented in the procedure above; however coefficient estimates are derived using least squares on the selected predictors only
+
+- adaptive lad lasso with lambda in the second stage chosen via cross-validation; the first stage estimate should be lad lasso with a small lambda
+
+- the FIRST approach depicted in the 2009 paper by Ghosal and colleagues; the paper and code can be found at    http://www4.stat.ncsu.edu/~sghosal/papers.html
+
+
+Discuss your findings and present figures that support your arguments. Note that in this assignment you have the opportunity to gain 10 bonus points that can be transfered to previous assignments.
+
+
+Submit your solution by midnight, Wed , Nov 29.
